@@ -1,7 +1,7 @@
 run_id: proposed-qwen3-1.7b-ptb
 method: AutoCoreVolLoRA
 model:
-  name: Qwen3-1.7B
+  name: Qwen/Qwen2.5-1.5B
   use_qlora: false
 dataset:
   name: ptb_text_only

@@ -134,3 +134,8 @@
 [2026-01-28 18:12:32,267][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/Qwen/Qwen3-0.6B/resolve/main/custom_generate/generate.py "HTTP/1.1 404 Not Found"
 === [TRIAL RUN] PASSED for comparative-1-qwen3-0.6b-ptb at Wed Jan 28 18:12:37 UTC 2026 ===
 
+=== [UV SYNC] Start at Wed Jan 28 18:13:17 UTC 2026 ===
+=== [UV SYNC] Finished successfully at Wed Jan 28 18:13:19 UTC 2026 ===
+=== [TRIAL RUN] Start for comparative-1-qwen3-1.7b-ptb at Wed Jan 28 18:13:19 UTC 2026 ===
+[2026-01-28 18:13:34,344][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/Qwen3-1.7B/resolve/main/config.json "HTTP/1.1 401 Unauthorized"
+[2026-01-28 18:13:34,518][httpx][INFO] - HTTP Request: HEAD https://huggingface.co/Qwen3-1.7B/resolve/main/config.json "HTTP/1.1 401 Unauthorized"

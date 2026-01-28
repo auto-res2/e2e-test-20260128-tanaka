@@ -12,7 +12,7 @@ def load_raw_dataset(dataset_cfg, cache_dir: str) -> DatasetDict:
     if name in {"wikitext-2", "wikitext2", "wikitext"}:
         raw = load_dataset("wikitext", "wikitext-2-raw-v1", cache_dir=cache_dir)
     elif name in {"ptb_text_only", "ptb"}:
-        raw = load_dataset("ptb_text_only", cache_dir=cache_dir)
+        raw = load_dataset("ptb-text-only/ptb_text_only", cache_dir=cache_dir)
     else:
         raw = load_dataset(dataset_cfg.name, cache_dir=cache_dir)
     return raw

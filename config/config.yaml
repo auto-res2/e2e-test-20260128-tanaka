@@ -12,6 +12,6 @@ wandb:
 
 hydra:
   run:
-    dir: ${results_dir}/${run.run_id}/hydra
+    dir: ${results_dir}/${hydra.job.name}
   job:
     chdir: true

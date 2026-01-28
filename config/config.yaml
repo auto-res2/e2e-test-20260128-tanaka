@@ -1,6 +1,6 @@
 defaults:
   - _self_
-  - runs@run: ???
+  - runs@run: comparative-1-mistral-7b-v0.3-ptb
 
 mode: full
 results_dir: results

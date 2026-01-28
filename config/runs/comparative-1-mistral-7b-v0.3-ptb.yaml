@@ -1,7 +1,7 @@
 run_id: comparative-1-mistral-7b-v0.3-ptb
 method: Standard LoRA / QLoRA (baseline)
 model:
-  name: Mistral-7B-v0.3
+  name: mistralai/Mistral-7B-v0.3
   use_qlora: true
 dataset:
   name: ptb_text_only
@@ -31,7 +31,7 @@ training:
   lora_alpha: "2*r"
   lora_dropout: 0.05
   target_modules: ["q_proj", "v_proj"]
-  use_qlora_for: ["Mistral-7B-v0.3"]
+  use_qlora_for: ["mistralai/Mistral-7B-v0.3"]
   qlora_4bit:
     load_in_4bit: true
     bnb_4bit_quant_type: nf4

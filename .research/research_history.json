@@ -1163,5 +1163,141 @@
     "experimental_code": "import torch\n\n\ndef _collect_lora_pairs(model):\n    pairs = {}\n    for name, p in model.named_parameters():\n        if not p.requires_grad:\n            continue\n        if name.endswith('lora_A.weight'):\n            pref = name[:-len('lora_A.weight')]\n            pairs.setdefault(pref, {})['A'] = p\n        elif name.endswith('lora_B.weight'):\n            pref = name[:-len('lora_B.weight')]\n            pairs.setdefault(pref, {})['B'] = p\n    return [(d['A'], d['B']) for d in pairs.values() if 'A' in d and 'B' in d]\n\n\ndef autocorevollora_stats(model, rho=1e-2, eps=1e-8):\n    \"\"\"Returns (sum_logdet, mean_effective_rank) over LoRA modules.\n\n    Core matrix C = sqrt(B^T B + eps I) * (A A^T) * sqrt(B^T B + eps I)\n    Trace-normalize to make it scale-invariant, then maximize logdet.\n    \"\"\"\n    total_logdet = 0.0\n    eff_ranks = []\n\n    for A, B in _collect_lora_pairs(model):\n        r = A.shape[0]\n        I = torch.eye(r, device=A.device, dtype=A.dtype)\n\n        GB = B.T @ B\n        GA = A @ A.T\n\n        # Stable SPD sqrt via eigendecomp on r×r\n        evalsB, evecsB = torch.linalg.eigh(GB + eps * I)\n        sqrtGB = (evecsB * torch.sqrt(torch.clamp(evalsB, min=0.0))).mm(evecsB.T)\n\n        C = sqrtGB @ GA @ sqrtGB\n        trC = torch.trace(C)\n        Cn = C / (trC + eps)\n\n        sign, logdet = torch.linalg.slogdet(Cn + rho * I)\n        if sign > 0:\n            total_logdet = total_logdet + logdet\n\n        # Effective rank on the simplex (eigenvalues sum≈1)\n        evalsC = torch.linalg.eigvalsh(Cn + eps * I)\n        p = torch.clamp(evalsC, min=eps)\n        p = p / p.sum()\n        r_eff = torch.exp(-(p * torch.log(p)).sum())\n        eff_ranks.append(r_eff)\n\n    if len(eff_ranks) == 0:\n        mean_eff_rank = torch.tensor(0.0)\n    else:\n        mean_eff_rank = torch.stack(eff_ranks).mean()\n\n    return total_logdet, mean_eff_rank\n\n\nclass AutoCoreVolLoRAController:\n    \"\"\"Online dual update for lambda to maintain target effective rank.\"\"\"\n\n    def __init__(self, r, gamma=0.75, lam_init=0.0, lam_max=0.05, eta_lam=1e-3, warmup_steps=100):\n        self.r = r\n        self.gamma = gamma\n        self.lam = lam_init\n        self.lam_max = lam_max\n        self.eta_lam = eta_lam\n        self.warmup_steps = warmup_steps\n\n    def step(self, step_idx, mean_eff_rank_detached: float):\n        if step_idx < self.warmup_steps:\n            return self.lam\n        target = self.gamma * self.r\n        self.lam = float(self.lam + self.eta_lam * (target - mean_eff_rank_detached))\n        self.lam = max(0.0, min(self.lam, self.lam_max))\n        return self.lam\n\n\n# --- usage inside training loop ---\n# controller = AutoCoreVolLoRAController(r=8, gamma=0.75)\n# task_loss = ...\n# logdet, mean_r_eff = autocorevollora_stats(model, rho=1e-2)\n# lam = controller.step(step, float(mean_r_eff.detach().cpu()))\n# if step >= controller.warmup_steps:\n#     task_loss = task_loss - lam * logdet\n# task_loss.backward()\n",
     "expected_result": "Across WT2 and PTB, very-low-rank (r=4/8) LoRA shows frequent update-spectrum collapse (low mean effective rank), leading to slower perplexity reduction and higher sensitivity to LR.\n\n**Quantitative predictions (distilgpt2, r=8, 2,000 steps, median over 3 seeds):**\n- **LoRA:** WT2 ppl ≈ 35.0; PTB ppl ≈ 120\n- **Ortho-LoRA (best λ):** WT2 ppl ≈ 33.5–34.0; PTB ppl ≈ 114–117\n- **VolLoRA-factorwise (best λ):** WT2 ppl ≈ 33.0–33.6; PTB ppl ≈ 112–116\n- **AutoCoreVolLoRA (γ=0.75, no λ sweep):** WT2 ppl ≈ 32.2–33.0; PTB ppl ≈ 108–113\n\n**Robustness predictions (LR ±25% from tuned baseline):**\n- LoRA/Ortho/VolLoRA show larger ppl variance and occasional divergence at r=4.\n- AutoCoreVolLoRA maintains stable training and keeps mean effective rank closer to target (e.g., mean r_eff ≈ 5.5–6.0 for r=8), with ≤~1 ppl degradation under LR perturbation.\n\nLower perplexity is better.",
     "expected_conclusion": "AutoCoreVolLoRA makes a stronger, more socially valuable contribution than the current hypothesis by combining two advances:\n\n1) **Direct spectrum control of the *actual* LoRA update** via a trace-normalized D-optimal (logdet) objective on the core matrix whose eigenvalues correspond to ΔW’s singular spectrum. This more precisely targets rank-budget waste than factor-wise geometry penalties.\n\n2) **Online, self-tuning regularization strength** using a dual update to maintain a target effective rank, substantially reducing hyperparameter search and improving stability under different seeds/LRs and under QLoRA-like noise.\n\nAcademically, it sharpens the mechanistic claim: *low-rank fine-tuning speed is governed by maintaining high-entropy singular spectra in ΔW*, and it provides an explicit control target (effective rank) linking optimization dynamics to adapter geometry.\n\nPractically and socially, by reducing steps-to-quality and avoiding costly λ sweeps in low-rank settings, it can lower compute/energy for widespread LoRA/QLoRA fine-tuning—without changing LoRA’s mergeability or requiring specialized kernels."
+  },
+  "experimental_design": {
+    "experiment_summary": "Task: causal language-model fine-tuning where the model must predict the next token in a sequence (i.e., learn to assign higher probability to the correct continuation of text), and we evaluate generalization by validation perplexity over held-out text.\n\nPurpose: demonstrate that **AutoCoreVolLoRA** (trace-normalized D-optimal/logdet regularization applied to the *actual LoRA update* spectrum, with online self-tuning λ via effective-rank control) improves (a) final perplexity after a fixed step budget and (b) step-efficiency/robustness in very-low-rank (r=4/8) LoRA/QLoRA settings, compared to standard LoRA.\n\nWorkflow:\n1) Load a pretrained causal LM.\n2) Add LoRA adapters to attention projection weights (q_proj and v_proj for modern models; for GPT2-like fused projections, apply to the fused projection module consistently).\n3) Train for a fixed number of optimizer steps (2,000) on next-token prediction.\n4) For AutoCoreVolLoRA, at each step compute the r×r core covariance C from LoRA factors (A,B), form trace-normalized Ĉ, add −λ·logdet(Ĉ+ρI) to the task loss, and update λ online after warmup to match a target effective rank.\n5) Evaluate on validation split every 200 steps; record perplexity curves and spectrum diagnostics (effective rank).\n6) Repeat across 3 seeds; run a small LR perturbation test (±25%) to quantify robustness.\n\nScale fit to Runner: The Runner provides a single high-memory GPU (A100/H200 ≥80GB) and very large RAM. We intentionally keep the experiment lightweight in wall-clock time and disk by:\n- limiting training to **2,000 optimizer steps** with modest sequence length (512) and micro-batch sizes that comfortably fit on one GPU;\n- using **very-low-rank** adapters (r∈{4,8}) so adapter overhead is negligible;\n- running **3 models × 2 datasets × 2 ranks × 3 seeds** (72 short runs). On A100/H200 this is feasible; for the 7B model we use QLoRA 4-bit to ensure memory headroom and maintain speed.\n\nImplementation notes (HF/PEFT):\n- Libraries: transformers, datasets, peft, accelerate, bitsandbytes (for QLoRA), torch.\n- Tokenization: standard model tokenizer; pack/concatenate examples into fixed-length blocks of 512 tokens.\n- Loss: standard cross-entropy on shifted logits/labels with ignore_index for padding.\n- Logging: store (step, train_loss, val_perplexity, mean_r_eff, λ) and optionally per-layer r_eff histograms.",
+    "runner_config": {
+      "runner_label": [
+        "self-hosted",
+        "gpu-runner"
+      ],
+      "description": "NVIDIA A100 or H200, VRAM: 80 GB or more, RAM: 2048 GB or more"
+    },
+    "evaluation_metrics": [
+      {
+        "name": "perplexity",
+        "description": "Correctness criteria: Lower is better; a model is considered better on this metric if it assigns higher probability to the ground-truth next tokens on the validation set, resulting in lower cross-entropy and thus lower perplexity.\n\nCalculation method:\n1) For each validation batch, compute next-token negative log-likelihood (cross-entropy):\n   CE = (1/N) * Σ_{t in valid tokens} −log p_θ(y_t | y_<t)\n   where N is the number of non-padding target tokens.\n2) Average CE over all validation batches to get CE_val.\n3) Perplexity = exp(CE_val).\n\nTask appropriateness: Perplexity is the standard intrinsic metric for language modeling because it directly measures how well the model predicts the next token distribution.\n\nRelevant visualizations:\n- Validation perplexity vs. training step learning curves (one curve per method/rank/model).\n- Box/violin plots of final-step perplexity across seeds (per method/rank/model/dataset)."
+      },
+      {
+        "name": "steps_to_target_perplexity",
+        "description": "Correctness criteria: Lower is better; a method is superior if it reaches a predefined validation perplexity threshold in fewer optimizer steps (or reaches it more consistently across seeds/LR perturbations).\n\nCalculation method:\n- Choose a target perplexity P* per (model,dataset) based on the baseline LoRA median at 2,000 steps (e.g., P* = 1.01× median LoRA final perplexity).\n- For each run, compute the smallest step s such that perplexity(s) ≤ P* using the logged evaluations every 200 steps.\n- If the run never reaches P* within 2,000 steps, set s = 2,000 + 200 (censored) and report also the fraction of runs that reached the target.\n\nTask appropriateness: The hypothesis emphasizes **time-to-quality/step efficiency**, which perplexity-at-fixed-steps alone does not fully capture.\n\nRelevant visualizations:\n- Kaplan–Meier-style survival curve (fraction of runs not yet reaching P*) vs. step.\n- Bar chart of median steps-to-target with error bars across seeds."
+      },
+      {
+        "name": "mean_effective_rank",
+        "description": "Correctness criteria: Higher (up to r) indicates less spectrum collapse and better utilization of the rank budget. For AutoCoreVolLoRA specifically, success includes maintaining mean_effective_rank near the target γ·r during training.\n\nCalculation method:\nFor each LoRA module with factors A∈R^{r×d_in}, B∈R^{d_out×r}:\n1) G_B = B^T B, G_A = A A^T.\n2) C = (G_B+εI)^{1/2} · G_A · (G_B+εI)^{1/2}.\n3) Trace-normalize: Ĉ = C / (tr(C)+ε).\n4) Let eigenvalues of Ĉ be p_i (clipped to ε and renormalized to sum to 1).\n5) Effective rank: r_eff = exp( −Σ_i p_i log p_i ).\nReport mean_effective_rank as the average r_eff over all LoRA modules (and optionally per-layer summaries).\n\nTask appropriateness: The core claim is that very-low-rank adapters waste rank because ΔW’s spectrum collapses; effective rank is a direct, scale-invariant diagnostic linked to the proposed regularizer.\n\nRelevant visualizations:\n- Histogram of r_eff across layers/modules at selected steps.\n- Scatter plot of (mean_effective_rank, validation perplexity) across runs/steps to show correlation.\n- Time series of mean_effective_rank and λ over training steps."
+      }
+    ],
+    "models_to_use": [
+      "Qwen3-0.6B (0.6B parameters)",
+      "Qwen3-1.7B (1.7B parameters)",
+      "Mistral-7B-v0.3 (7.3B parameters)"
+    ],
+    "datasets_to_use": [
+      "WikiText-2 (wikitext, config: wikitext-2-raw-v1)",
+      "Penn Treebank (ptb_text_only)"
+    ],
+    "proposed_method": {
+      "method_name": "AutoCoreVolLoRA",
+      "description": "LoRA/QLoRA fine-tuning with a **trace-normalized D-optimal (logdet) regularizer** applied to the *r×r core covariance* that exactly encodes the non-zero singular spectrum of the actual update ΔW=BA. Adds −λ·logdet(Ĉ+ρI) to the task loss, where Ĉ is the trace-normalized core covariance, making the objective invariant to LoRA rescalings/α. Uses an **online dual-ascent controller** to self-tune λ to maintain a target effective rank γ·r, improving robustness and reducing hyperparameter sensitivity under very-low-rank and QLoRA noise. Overhead is negligible (eigh/slogdet on r×r per LoRA module).",
+      "training_config": {
+        "learning_rate": 0.0002,
+        "batch_size": 16,
+        "optimizer": "adamw",
+        "warmup_steps": 100,
+        "weight_decay": 0.01,
+        "gradient_clip": 1.0,
+        "scheduler": "linear",
+        "seed": 42,
+        "additional_params": "{\n  \"max_steps\": 2000,\n  \"eval_every_steps\": 200,\n  \"seq_len\": 512,\n  \"gradient_accumulation_steps\": 4,\n  \"precision\": \"bf16\",\n  \"lora_rank\": [4, 8],\n  \"lora_alpha\": \"2*r (i.e., 8 for r=4; 16 for r=8)\",\n  \"lora_dropout\": 0.05,\n  \"target_modules\": [\"q_proj\", \"v_proj\"],\n  \"use_qlora_for\": [\"Mistral-7B-v0.3\"],\n  \"qlora_4bit\": {\"load_in_4bit\": true, \"bnb_4bit_quant_type\": \"nf4\", \"bnb_4bit_compute_dtype\": \"bf16\", \"bnb_4bit_use_double_quant\": true},\n  \"autocorevollora\": {\n    \"rho\": 1e-2,\n    \"eps\": 1e-8,\n    \"gamma\": [0.60, 0.75],\n    \"eta_lambda\": 1e-3,\n    \"lambda_init\": 0.0,\n    \"lambda_max\": 0.05,\n    \"lambda_warmup_steps\": 100,\n    \"apply_to\": \"all_lora_modules\",\n    \"loss_form\": \"L = L_task - lambda * sum_modules logdet(C_hat + rho I)\"\n  },\n  \"robustness\": {\"seeds\": [42, 43, 44], \"lr_multipliers\": [0.75, 1.0, 1.25]}\n}"
+      },
+      "optuna_config": {
+        "enabled": true,
+        "n_trials": 20,
+        "search_spaces": [
+          {
+            "param_name": "learning_rate",
+            "distribution_type": "loguniform",
+            "low": 5e-05,
+            "high": 0.0006
+          },
+          {
+            "param_name": "autocorevollora.gamma",
+            "distribution_type": "categorical",
+            "choices": [
+              0.6,
+              0.75
+            ]
+          },
+          {
+            "param_name": "autocorevollora.rho",
+            "distribution_type": "loguniform",
+            "low": 0.001,
+            "high": 0.05
+          },
+          {
+            "param_name": "lora_dropout",
+            "distribution_type": "uniform",
+            "low": 0.0,
+            "high": 0.1
+          },
+          {
+            "param_name": "weight_decay",
+            "distribution_type": "loguniform",
+            "low": 0.0001,
+            "high": 0.05
+          }
+        ]
+      }
+    },
+    "comparative_methods": [
+      {
+        "method_name": "Standard LoRA / QLoRA (baseline)",
+        "description": "Conventional low-rank adaptation with ΔW=BA and fixed rank r and scaling α; no spectrum-shaping regularization and no online control. For the 7B model, uses QLoRA 4-bit quantization (NF4) with the same LoRA configuration to match memory/throughput constraints.",
+        "training_config": {
+          "learning_rate": 0.0002,
+          "batch_size": 16,
+          "optimizer": "adamw",
+          "warmup_steps": 100,
+          "weight_decay": 0.01,
+          "gradient_clip": 1.0,
+          "scheduler": "linear",
+          "seed": 42,
+          "additional_params": "{\n  \"max_steps\": 2000,\n  \"eval_every_steps\": 200,\n  \"seq_len\": 512,\n  \"gradient_accumulation_steps\": 4,\n  \"precision\": \"bf16\",\n  \"lora_rank\": [4, 8],\n  \"lora_alpha\": \"2*r\",\n  \"lora_dropout\": 0.05,\n  \"target_modules\": [\"q_proj\", \"v_proj\"],\n  \"use_qlora_for\": [\"Mistral-7B-v0.3\"],\n  \"qlora_4bit\": {\"load_in_4bit\": true, \"bnb_4bit_quant_type\": \"nf4\", \"bnb_4bit_compute_dtype\": \"bf16\", \"bnb_4bit_use_double_quant\": true},\n  \"robustness\": {\"seeds\": [42, 43, 44], \"lr_multipliers\": [0.75, 1.0, 1.25]}\n}"
+        },
+        "optuna_config": {
+          "enabled": true,
+          "n_trials": 20,
+          "search_spaces": [
+            {
+              "param_name": "learning_rate",
+              "distribution_type": "loguniform",
+              "low": 5e-05,
+              "high": 0.0006
+            },
+            {
+              "param_name": "lora_dropout",
+              "distribution_type": "uniform",
+              "low": 0.0,
+              "high": 0.1
+            },
+            {
+              "param_name": "weight_decay",
+              "distribution_type": "loguniform",
+              "low": 0.0001,
+              "high": 0.05
+            },
+            {
+              "param_name": "gradient_clip",
+              "distribution_type": "categorical",
+              "choices": [
+                0.0,
+                0.5,
+                1.0
+              ]
+            }
+          ]
+        }
+      }
+    ]
   }
 }

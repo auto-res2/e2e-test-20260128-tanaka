@@ -1,0 +1,74 @@
+run_id: proposed-qwen3-1.7b-ptb
+method: AutoCoreVolLoRA
+model:
+  name: Qwen3-1.7B
+  use_qlora: false
+dataset:
+  name: ptb_text_only
+  text_column: text
+  max_length: 512
+  pack_to_max_length: true
+  split:
+    train: train
+    validation: validation
+    test: test
+training:
+  learning_rate: 0.0002
+  batch_size: 16
+  epochs: null
+  optimizer: adamw
+  warmup_steps: 100
+  weight_decay: 0.01
+  gradient_clip: 1.0
+  scheduler: linear
+  seed: 42
+  max_steps: 2000
+  eval_every_steps: 200
+  seq_len: 512
+  gradient_accumulation_steps: 4
+  precision: bf16
+  lora_rank: [4, 8]
+  lora_alpha: "2*r"
+  lora_dropout: 0.05
+  target_modules: ["q_proj", "v_proj"]
+  use_qlora_for: ["Mistral-7B-v0.3"]
+  qlora_4bit:
+    load_in_4bit: true
+    bnb_4bit_quant_type: nf4
+    bnb_4bit_compute_dtype: bf16
+    bnb_4bit_use_double_quant: true
+  autocorevollora:
+    rho: 1e-2
+    eps: 1e-8
+    gamma: [0.6, 0.75]
+    eta_lambda: 1e-3
+    lambda_init: 0.0
+    lambda_max: 0.05
+    lambda_warmup_steps: 100
+    apply_to: all_lora_modules
+    loss_form: "L = L_task - lambda * sum_modules logdet(C_hat + rho I)"
+  robustness:
+    seeds: [42, 43, 44]
+    lr_multipliers: [0.75, 1.0, 1.25]
+optuna:
+  n_trials: 20
+  search_spaces:
+    - param_name: learning_rate
+      distribution_type: loguniform
+      low: 5.0e-05
+      high: 0.0006
+    - param_name: autocorevollora.gamma
+      distribution_type: categorical
+      choices: [0.6, 0.75]
+    - param_name: autocorevollora.rho
+      distribution_type: loguniform
+      low: 0.001
+      high: 0.05
+    - param_name: lora_dropout
+      distribution_type: uniform
+      low: 0.0
+      high: 0.1
+    - param_name: weight_decay
+      distribution_type: loguniform
+      low: 0.0001
+      high: 0.05

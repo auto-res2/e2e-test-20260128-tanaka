@@ -1,0 +1,19 @@
+defaults:
+  - _self_
+  - runs@run: ${run}
+
+run: ???
+
+mode: full
+results_dir: results
+
+wandb:
+  entity: airas
+  project: 2026-01-28
+  mode: online
+
+hydra:
+  run:
+    dir: ${results_dir}/${run.run_id}/hydra
+  job:
+    chdir: true

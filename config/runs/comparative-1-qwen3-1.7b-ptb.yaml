@@ -1,0 +1,60 @@
+run_id: comparative-1-qwen3-1.7b-ptb
+method: Standard LoRA / QLoRA (baseline)
+model:
+  name: Qwen3-1.7B
+  use_qlora: false
+dataset:
+  name: ptb_text_only
+  text_column: text
+  max_length: 512
+  pack_to_max_length: true
+  split:
+    train: train
+    validation: validation
+    test: test
+training:
+  learning_rate: 0.0002
+  batch_size: 16
+  epochs: null
+  optimizer: adamw
+  warmup_steps: 100
+  weight_decay: 0.01
+  gradient_clip: 1.0
+  scheduler: linear
+  seed: 42
+  max_steps: 2000
+  eval_every_steps: 200
+  seq_len: 512
+  gradient_accumulation_steps: 4
+  precision: bf16
+  lora_rank: [4, 8]
+  lora_alpha: "2*r"
+  lora_dropout: 0.05
+  target_modules: ["q_proj", "v_proj"]
+  use_qlora_for: ["Mistral-7B-v0.3"]
+  qlora_4bit:
+    load_in_4bit: true
+    bnb_4bit_quant_type: nf4
+    bnb_4bit_compute_dtype: bf16
+    bnb_4bit_use_double_quant: true
+  robustness:
+    seeds: [42, 43, 44]
+    lr_multipliers: [0.75, 1.0, 1.25]
+optuna:
+  n_trials: 20
+  search_spaces:
+    - param_name: learning_rate
+      distribution_type: loguniform
+      low: 5.0e-05
+      high: 0.0006
+    - param_name: lora_dropout
+      distribution_type: uniform
+      low: 0.0
+      high: 0.1
+    - param_name: weight_decay
+      distribution_type: loguniform
+      low: 0.0001
+      high: 0.05
+    - param_name: gradient_clip
+      distribution_type: categorical
+      choices: [0.0, 0.5, 1.0]

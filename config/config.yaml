@@ -1,8 +1,6 @@
 defaults:
   - _self_
-  - runs@run: ${run}
-
-run: ???
+  - runs@run: ???
 
 mode: full
 results_dir: results

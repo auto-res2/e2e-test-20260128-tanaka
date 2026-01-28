@@ -443,6 +443,15 @@ def train_single(
 
                 loss = total_loss / grad_accum_steps
 
+            # Compute auxiliary gradient norm before backward pass to preserve graph
+            if (
+                method_family in {"autocore", "vollora"}
+                and accum_idx == 0
+                and step % eval_every_steps == 0
+                and reg_term.requires_grad
+            ):
+                aux_grad_norm = compute_aux_grad_norm(reg_term, trainable_params)
+
             if scaler.is_enabled():
                 scaler.scale(loss).backward()
             else:
@@ -453,14 +462,6 @@ def train_single(
             autocore_logdet_accum += float(autocore_logdet.detach().float().item())
             reg_term_accum += float(reg_term.detach().float().item())
             mean_r_eff_accum += float(mean_r_eff.detach().float().item())
-
-            if (
-                method_family in {"autocore", "vollora"}
-                and accum_idx == 0
-                and step % eval_every_steps == 0
-                and reg_term.requires_grad
-            ):
-                aux_grad_norm = compute_aux_grad_norm(reg_term, trainable_params)
 
         if scaler.is_enabled():
             scaler.unscale_(optimizer)

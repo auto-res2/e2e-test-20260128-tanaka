@@ -19,7 +19,7 @@ def apply_mode_overrides(cfg):
 def build_overrides(cfg) -> list:
     run_id = cfg.run.run_id if hasattr(cfg, "run") else cfg.run
     overrides = [
-        f"run={run_id}",
+        f"runs@run={run_id}",
         f"results_dir={cfg.results_dir}",
         f"mode={cfg.mode}",
     ]

@@ -1,0 +1,8 @@
+{
+  "research_topic": "Fast Fine-Tuning Methods for Large Language Models",
+  "queries": [
+    "parameter-efficient finetuning",
+    "LoRA adaptation",
+    "QLoRA finetuning"
+  ]
+}

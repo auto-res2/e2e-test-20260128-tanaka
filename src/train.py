@@ -443,10 +443,18 @@ def train_single(
 
                 loss = total_loss / grad_accum_steps
 
+            # Determine if we need to retain graph for aux_grad_norm computation
+            need_retain_graph = (
+                method_family in {"autocore", "vollora"}
+                and accum_idx == 0
+                and step % eval_every_steps == 0
+                and reg_term.requires_grad
+            )
+
             if scaler.is_enabled():
-                scaler.scale(loss).backward()
+                scaler.scale(loss).backward(retain_graph=need_retain_graph)
             else:
-                loss.backward()
+                loss.backward(retain_graph=need_retain_graph)
 
             task_loss_accum += float(task_loss.detach().float().item())
             total_loss_accum += float(total_loss.detach().float().item())
@@ -454,12 +462,7 @@ def train_single(
             reg_term_accum += float(reg_term.detach().float().item())
             mean_r_eff_accum += float(mean_r_eff.detach().float().item())
 
-            if (
-                method_family in {"autocore", "vollora"}
-                and accum_idx == 0
-                and step % eval_every_steps == 0
-                and reg_term.requires_grad
-            ):
+            if need_retain_graph:
                 aux_grad_norm = compute_aux_grad_norm(reg_term, trainable_params)
 
         if scaler.is_enabled():

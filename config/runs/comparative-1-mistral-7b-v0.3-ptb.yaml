@@ -5,7 +5,7 @@ model:
   use_qlora: true
 dataset:
   name: ptb_text_only
-  text_column: text
+  text_column: sentence
   max_length: 512
   pack_to_max_length: true
   split:

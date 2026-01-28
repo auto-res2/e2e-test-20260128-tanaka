@@ -561,7 +561,10 @@ def train_single(
 @hydra.main(config_path="../config", config_name="config", version_base="1.3")
 def main(cfg):
     cfg = apply_mode_overrides(cfg)
+    # Temporarily disable struct mode to allow merging run config with new keys
+    OmegaConf.set_struct(cfg, False)
     cfg = OmegaConf.merge(cfg, cfg.run)
+    OmegaConf.set_struct(cfg, True)
     if not hasattr(cfg, "run") or cfg.run is None:
         raise ValueError("Run configuration must be provided via run=<run_id>.")
     if not hasattr(cfg, "run_id"):

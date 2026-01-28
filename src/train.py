@@ -55,6 +55,9 @@ def apply_mode_overrides(cfg):
 
 
 def ensure_list(value):
+    # Convert OmegaConf types to plain Python types
+    if OmegaConf.is_config(value):
+        value = OmegaConf.to_container(value, resolve=True)
     if isinstance(value, (list, tuple)):
         return list(value)
     return [value]

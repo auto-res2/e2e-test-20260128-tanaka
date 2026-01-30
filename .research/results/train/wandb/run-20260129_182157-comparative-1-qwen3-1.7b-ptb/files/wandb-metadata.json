@@ -1,0 +1,44 @@
+{
+  "os": "Linux-6.8.0-84-generic-x86_64-with-glibc2.35",
+  "python": "CPython 3.11.14",
+  "startedAt": "2026-01-29T18:21:57.459480Z",
+  "args": [
+    "runs@run=comparative-1-qwen3-1.7b-ptb",
+    "results_dir=/workspace/actions-runner/_work/e2e-test-20260128-tanaka/e2e-test-20260128-tanaka/.research/results",
+    "mode=full",
+    "wandb.mode=online"
+  ],
+  "program": "-m src.train",
+  "git": {
+    "remote": "https://github.com/auto-res2/e2e-test-20260128-tanaka",
+    "commit": "80ff90e93abb3372c72fb07a6fd11f3ee3167805"
+  },
+  "email": "gengaru617science@gmail.com",
+  "root": "/workspace/actions-runner/_work/e2e-test-20260128-tanaka/e2e-test-20260128-tanaka/.research/results/train",
+  "host": "KFK-037-runner4",
+  "executable": "/workspace/actions-runner/_work/e2e-test-20260128-tanaka/e2e-test-20260128-tanaka/.venv/bin/python3",
+  "cpu_count": 112,
+  "cpu_count_logical": 224,
+  "gpu": "NVIDIA H200",
+  "gpu_count": 1,
+  "disk": {
+    "/": {
+      "total": "1888104628224",
+      "used": "320902922240"
+    }
+  },
+  "memory": {
+    "total": "2163949637632"
+  },
+  "gpu_nvidia": [
+    {
+      "name": "NVIDIA H200",
+      "memoryTotal": "150754820096",
+      "cudaCores": 16896,
+      "architecture": "Hopper",
+      "uuid": "GPU-c7777115-59ba-36cf-0bac-0214c51b3889"
+    }
+  ],
+  "cudaVersion": "13.0",
+  "writerId": "hfcrgs5l5bcjpus0y4jyzf3v6e26g78n"
+}

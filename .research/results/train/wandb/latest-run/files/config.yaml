@@ -1,0 +1,236 @@
+_wandb:
+    value:
+        cli_version: 0.24.0
+        e:
+            hfcrgs5l5bcjpus0y4jyzf3v6e26g78n:
+                args:
+                    - runs@run=comparative-1-qwen3-1.7b-ptb
+                    - results_dir=/workspace/actions-runner/_work/e2e-test-20260128-tanaka/e2e-test-20260128-tanaka/.research/results
+                    - mode=full
+                    - wandb.mode=online
+                cpu_count: 112
+                cpu_count_logical: 224
+                cudaVersion: "13.0"
+                disk:
+                    /:
+                        total: "1888104628224"
+                        used: "320902922240"
+                email: gengaru617science@gmail.com
+                executable: /workspace/actions-runner/_work/e2e-test-20260128-tanaka/e2e-test-20260128-tanaka/.venv/bin/python3
+                git:
+                    commit: 80ff90e93abb3372c72fb07a6fd11f3ee3167805
+                    remote: https://github.com/auto-res2/e2e-test-20260128-tanaka
+                gpu: NVIDIA H200
+                gpu_count: 1
+                gpu_nvidia:
+                    - architecture: Hopper
+                      cudaCores: 16896
+                      memoryTotal: "150754820096"
+                      name: NVIDIA H200
+                      uuid: GPU-c7777115-59ba-36cf-0bac-0214c51b3889
+                host: KFK-037-runner4
+                memory:
+                    total: "2163949637632"
+                os: Linux-6.8.0-84-generic-x86_64-with-glibc2.35
+                program: -m src.train
+                python: CPython 3.11.14
+                root: /workspace/actions-runner/_work/e2e-test-20260128-tanaka/e2e-test-20260128-tanaka/.research/results/train
+                startedAt: "2026-01-29T18:21:57.459480Z"
+                writerId: hfcrgs5l5bcjpus0y4jyzf3v6e26g78n
+        m: []
+        python_version: 3.11.14
+        t:
+            "1":
+                - 1
+                - 11
+                - 35
+                - 49
+                - 50
+                - 51
+                - 71
+                - 98
+            "2":
+                - 1
+                - 11
+                - 35
+                - 49
+                - 50
+                - 51
+                - 71
+                - 98
+            "3":
+                - 2
+                - 14
+                - 16
+                - 61
+                - 62
+            "4": 3.11.14
+            "5": 0.24.0
+            "6": 5.0.0
+            "12": 0.24.0
+            "13": linux-x86_64
+dataset:
+    value:
+        max_length: 512
+        name: ptb_text_only
+        pack_to_max_length: true
+        split:
+            test: test
+            train: train
+            validation: validation
+        text_column: text
+method:
+    value: Standard LoRA / QLoRA (baseline)
+mode:
+    value: full
+model:
+    value:
+        name: Qwen/Qwen2.5-1.5B
+        use_qlora: false
+optuna:
+    value:
+        n_trials: 20
+        search_spaces:
+            - distribution_type: loguniform
+              high: 0.0006
+              low: 5e-05
+              param_name: learning_rate
+            - distribution_type: uniform
+              high: 0.1
+              low: 0
+              param_name: lora_dropout
+            - distribution_type: loguniform
+              high: 0.05
+              low: 0.0001
+              param_name: weight_decay
+            - choices:
+                - 0
+                - 0.5
+                - 1
+              distribution_type: categorical
+              param_name: gradient_clip
+results_dir:
+    value: /workspace/actions-runner/_work/e2e-test-20260128-tanaka/e2e-test-20260128-tanaka/.research/results
+run:
+    value:
+        dataset:
+            max_length: 512
+            name: ptb_text_only
+            pack_to_max_length: true
+            split:
+                test: test
+                train: train
+                validation: validation
+            text_column: text
+        method: Standard LoRA / QLoRA (baseline)
+        model:
+            name: Qwen/Qwen2.5-1.5B
+            use_qlora: false
+        optuna:
+            n_trials: 20
+            search_spaces:
+                - distribution_type: loguniform
+                  high: 0.0006
+                  low: 5e-05
+                  param_name: learning_rate
+                - distribution_type: uniform
+                  high: 0.1
+                  low: 0
+                  param_name: lora_dropout
+                - distribution_type: loguniform
+                  high: 0.05
+                  low: 0.0001
+                  param_name: weight_decay
+                - choices:
+                    - 0
+                    - 0.5
+                    - 1
+                  distribution_type: categorical
+                  param_name: gradient_clip
+        run_id: comparative-1-qwen3-1.7b-ptb
+        training:
+            batch_size: 16
+            epochs: null
+            eval_every_steps: 200
+            gradient_accumulation_steps: 4
+            gradient_clip: 1
+            learning_rate: 0.0002
+            lora_alpha: 2*r
+            lora_dropout: 0.05
+            lora_rank:
+                - 4
+                - 8
+            max_steps: 2000
+            optimizer: adamw
+            precision: bf16
+            qlora_4bit:
+                bnb_4bit_compute_dtype: bf16
+                bnb_4bit_quant_type: nf4
+                bnb_4bit_use_double_quant: true
+                load_in_4bit: true
+            robustness:
+                lr_multipliers:
+                    - 0.75
+                    - 1
+                    - 1.25
+                seeds:
+                    - 42
+                    - 43
+                    - 44
+            scheduler: linear
+            seed: 42
+            seq_len: 512
+            target_modules:
+                - q_proj
+                - v_proj
+            use_qlora_for:
+                - Mistral-7B-v0.3
+            warmup_steps: 100
+            weight_decay: 0.01
+run_id:
+    value: comparative-1-qwen3-1.7b-ptb
+training:
+    value:
+        batch_size: 16
+        epochs: null
+        eval_every_steps: 200
+        gradient_accumulation_steps: 4
+        gradient_clip: 1
+        learning_rate: 0.0002
+        lora_alpha: 2*r
+        lora_dropout: 0.05
+        lora_rank:
+            - 4
+            - 8
+        max_steps: 2000
+        optimizer: adamw
+        precision: bf16
+        qlora_4bit:
+            bnb_4bit_compute_dtype: bf16
+            bnb_4bit_quant_type: nf4
+            bnb_4bit_use_double_quant: true
+            load_in_4bit: true
+        robustness:
+            lr_multipliers:
+                - 0.75
+                - 1
+                - 1.25
+            seeds:
+                - 42
+                - 43
+                - 44
+        scheduler: linear
+        seed: 42
+        seq_len: 512
+        target_modules:
+            - q_proj
+            - v_proj
+        use_qlora_for:
+            - Mistral-7B-v0.3
+        warmup_steps: 100
+        weight_decay: 0.01
+wandb:
+    value:
+        entity: airas
+        mode: online
+        project: "2026-01-28"
